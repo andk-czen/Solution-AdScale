@@ -18,7 +18,7 @@
 Каждое событие содержит event_id (UUID для deduplication), event_type, timestamp, correlation_id (для tracing), и business_data (impression details, click info и т.д.). Используется JSON формат.
 
 
-**Пример схемы события **:
+**Пример схемы события**:
 ***Формат json***
 {
   "type": "record",
