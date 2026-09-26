@@ -1,1 +1,73 @@
+@startuml
+title Sequence — Обработка bid request (hot path, размер tmax ≤ 80 ms)
 
+skinparam responseMessageBelowArrow true
+autonumber
+
+actor "DSP-партнёр" as DSP
+participant "API Gateway\n(Envoy)" as GW
+participant "Bidding Service" as BID
+database "Redis\n(горячие данные)" as REDIS
+participant "Delivery Service" as DEL
+queue "Kafka" as KAFKA
+participant "Stats\nConsumer" as STATS
+participant "Financial\nService" as FIN
+
+== Синхронный hot path (в рамках tmax) ==
+
+DSP -> GW : POST /openrtb/2.5/bid\n(BidRequest, tmax=80ms)
+activate GW
+GW -> GW : TLS · mTLS auth · rate limit (token bucket)\nвыставить deadline = min(tmax, internal)
+GW -> BID : RunAuction (gRPC, deadline propagated)
+activate BID
+
+BID -> REDIS : подбор кандидатов\n(пересечение SET таргетинга)
+activate REDIS
+REDIS --> BID : кандидаты + bid_price + остаток бюджета
+deactivate REDIS
+
+BID -> BID : аукцион в памяти,\nвыбор победителя
+BID -> REDIS : атомарный DECRBY budget:remaining\n+ SET win:{win_token} EX
+activate REDIS
+REDIS --> BID : OK (бюджет зарезервирован)
+deactivate REDIS
+
+BID -> DEL : BuildCreative (gRPC, deadline)
+activate DEL
+DEL --> BID : creative ref (HTML/JS / CDN url)
+deactivate DEL
+
+BID --> GW : AuctionResponse\n(WIN, price, ad_id, win_token)
+deactivate BID
+GW --> DSP : 200 OK — BidResponse (OpenRTB)
+deactivate GW
+
+note over DSP, GW
+  Ответ доставлен рамках tmax.
+  При дедлайне/деградации → 204 no-bid или fallback (см. reliability).
+end note
+
+== Асинхронный поток (ПОСЛЕ ответа, вне рамок latency) ==
+
+BID -> KAFKA : publish auction.events / impression.events\n(fire-and-forget, ключ = campaign_id)
+note right of KAFKA : Публикация неблокирующая,\nне входит в tmax
+
+DSP -> DEL : показ данных пользователю -> клик
+DEL -> KAFKA : publish click.events / impression.events
+
+KAFKA -> STATS : consume (агрегация)
+activate STATS
+STATS -> STATS : батч-запись агрегатов\n(eventual consistency)
+deactivate STATS
+
+KAFKA -> FIN : consume (билинговые события)
+activate FIN
+FIN -> FIN : идемпотентное списание\nпо win_token (строгая согласованность)
+deactivate FIN
+
+note over STATS, FIN
+  Критичный (аукцион) и некритичный (учёт, биллинг)
+  потоки РАЗДЕЛЕНЫ через Kafka.
+end note
+
+@enduml
