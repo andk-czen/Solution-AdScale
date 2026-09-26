@@ -21,19 +21,19 @@
 **Пример схемы события**:
 ***Формат json***
 {
-  "type": "record",
-  "name": "Click",
-  "namespace": "adscale.events",
-  "fields": [
-    {"name": "event_id", "type": "string"},
-    {"name": "timestamp", "type": "long", "logicalType": "timestamp"},
-    {"name": "campaign_id", "type": "string"},
-    {"name": "id_bid_request", "type": "string"},
-    {"name": "user_agent", "type": "string"},
-    {"name": "ip", "type": "string"},
-    {"name": "site", "type": "string"},
-    {"name": "price", "type": "double"}
-  ]
+"type": "record",
+"name": "Click",
+"namespace": "adscale.events",
+"fields": [
+{"name": "event_id", "type": "string"},
+{"name": "timestamp", "type": "long", "logicalType": "timestamp"},
+{"name": "campaign_id", "type": "string"},
+{"name": "id_bid_request", "type": "string"},
+{"name": "user_agent", "type": "string"},
+{"name": "ip", "type": "string"},
+{"name": "site", "type": "string"},
+{"name": "price", "type": "double"}
+]
 }
 
 ## Группы потребителей  
