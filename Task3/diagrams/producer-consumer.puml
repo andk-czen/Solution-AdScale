@@ -1,1 +1,68 @@
+@startuml
+title Топология потоковой обработки - Kafka (топики, consumer groups, хранилища)
 
+skinparam componentStyle rectangle
+skinparam rectangle {
+  BackgroundColor<<topic>> #FFF3CD
+  BackgroundColor<<producer>> #D1E7DD
+  BackgroundColor<<consumer>> #CFE2FF
+  BackgroundColor<<store>> #E2E3E5
+}
+
+' ====================== Producers ======================
+rectangle "Bidding Service" as bidding <<producer>>
+rectangle "Delivery Service" as delivery <<producer>>
+rectangle "Campaign Service" as campaign <<producer>>
+rectangle "financial Service" as fin <<producer>>
+
+' ====================== Topics ======================
+package "Apache Kafka" {
+  queue "bidding-events" as t_bidding <<topic>>
+  queue "impression.events" as t_imp <<topic>>
+  queue "stats-events" as t_click <<topic>>
+  queue "campaign-events" as t_camp <<topic>>
+  queue "financial-events" as t_bill <<topic>>
+
+}
+
+' ====================== Consumer groups ======================
+rectangle "cg-stats\n(агрегация)" as cg_stats <<consumer>>
+rectangle "cg-financial\n(идемпотентные списания)" as cg_fin <<consumer>>
+rectangle "cg-cache-projector\n(CQRS-проекции)" as cg_proj <<consumer>>
+rectangle "cg-analytics-mart\n(витрины)" as cg_mart <<consumer>>
+
+' ====================== Stores ======================
+database "ClickHouse\n(Events Store)" as ch <<store>>
+database "PostgreSQL\n(Financial, ACID)" as pg <<store>>
+database "Redis\n(read-model)" as redis <<store>>
+database "ClickHouse\n(Analytics marts)" as chm <<store>>
+
+' ====================== Producer -> Topic ======================
+bidding --> t_bidding
+bidding --> t_imp
+delivery --> t_imp
+delivery --> t_click
+campaign --> t_camp
+bidding --> t_bill
+fin --> t_bill
+
+' ====================== Topic -> Consumer group ======================
+t_bidding --> cg_stats
+t_imp --> cg_stats
+t_click --> cg_stats
+t_imp --> cg_fin
+t_bill --> cg_fin
+t_camp --> cg_proj
+t_imp --> cg_mart
+t_click --> cg_mart
+
+' ====================== Consumer -> Store ======================
+cg_stats --> ch 
+cg_fin --> pg 
+cg_proj --> redis  
+cg_mart --> chm 
+
+
+
+
+@enduml
